@@ -2,6 +2,11 @@
 #include "DirectXManager.h"
 #include "Timer.h"
 
+struct Vertex
+{
+	XMFLOAT3 Pos;
+};
+
 class CGameFramework
 {
 private:
@@ -13,6 +18,17 @@ private:
 
 	CTimer	  m_timer;
 	CDirectXManager m_d3dMgr;
+
+	ID3D11Buffer* mBoxVB;
+	ID3D11Buffer* mBoxIB;
+
+	XMFLOAT4X4 mWorld;
+	XMFLOAT4X4 mView;
+	XMFLOAT4X4 mProj;
+
+	ID3D11VertexShader				*m_pd3dVertexShader;
+	ID3D11InputLayout				*m_pd3dVertexLayout;
+	ID3D11PixelShader				*m_pd3dPixelShader;
 
 public:
 	static CGameFramework* m_framework;

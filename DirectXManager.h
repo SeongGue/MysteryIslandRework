@@ -23,6 +23,9 @@ public:
 	bool InitDirect3D(HWND hwnd, int width, int height);
 	void OnResize(int width, int height);
 
-	IDXGISwapChain* GetSwapChain() { return m_SwapChain; }
+	ID3D11Device*		 GetDevice()	{ return m_d3dDevice; }
+	ID3D11DeviceContext* GetDC()		{ return m_d3dDeviceContext; }		
+	IDXGISwapChain*		 GetSwapChain() { return m_SwapChain; }
 };
 
+	

@@ -111,17 +111,17 @@ bool CDirectXManager::InitDirect3D(HWND hwnd, int width, int height)
 	// This function is being called with a device from a different IDXGIFactory."
 
 	IDXGIDevice* dxgiDevice = 0;
-	HR(m_d3dDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDevice))
+	HR(m_d3dDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDevice));
 
-		IDXGIAdapter* dxgiAdapter = 0;
-	HR(dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter))
+	IDXGIAdapter* dxgiAdapter = 0;
+	HR(dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter));
 
-		IDXGIFactory* dxgiFactory = 0;
-	HR(dxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&dxgiFactory))
+	IDXGIFactory* dxgiFactory = 0;
+	HR(dxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&dxgiFactory));
 
-		HR(dxgiFactory->CreateSwapChain(m_d3dDevice, &sd, &m_SwapChain))
+	HR(dxgiFactory->CreateSwapChain(m_d3dDevice, &sd, &m_SwapChain));
 
-		SafeRelease(&dxgiDevice);
+	SafeRelease(&dxgiDevice);
 	SafeRelease(&dxgiAdapter);
 	SafeRelease(&dxgiFactory);
 
@@ -150,14 +150,13 @@ void CDirectXManager::OnResize(int width, int height)
 
 	// Resize the swap chain and recreate the render target view.
 
-	HR(m_SwapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0))
+	HR(m_SwapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0));
+	ID3D11Texture2D* backBuffer;
+	HR(m_SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer)));
 
-		ID3D11Texture2D* backBuffer;
-	HR(m_SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer)))
+	HR(m_d3dDevice->CreateRenderTargetView(backBuffer, 0, &m_RenderTargetView));
 
-		HR(m_d3dDevice->CreateRenderTargetView(backBuffer, 0, &m_RenderTargetView))
-
-		SafeRelease(&backBuffer);
+	SafeRelease(&backBuffer);
 
 	// Create the depth/stencil buffer and view.
 

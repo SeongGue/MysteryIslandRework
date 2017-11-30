@@ -16,10 +16,25 @@ CGameFramework::CGameFramework(HINSTANCE hInstance)
 	m_nClientHeight = 700;
 
 	m_framework = this;
+
+	XMMATRIX I = XMMatrixIdentity();
+	XMStoreFloat4x4(&mWorld, I);
+	XMStoreFloat4x4(&mView, I);
+	XMStoreFloat4x4(&mProj, I);
+
+	m_pd3dVertexShader = NULL;
+	m_pd3dVertexLayout = NULL;
+	m_pd3dPixelShader = NULL;
 }
 
 CGameFramework::~CGameFramework()
 {
+	SafeRelease(&mBoxVB);
+	SafeRelease(&mBoxIB);
+
+	SafeRelease(&m_pd3dVertexShader);
+	SafeRelease(&m_pd3dVertexLayout);
+	SafeRelease(&m_pd3dPixelShader);
 }
 
 BOOL CGameFramework::InitRegisterClass()
@@ -62,6 +77,72 @@ bool CGameFramework::Init()
 	//다이렉트3D 초기화
 	if (!m_d3dMgr.InitDirect3D(m_hWnd, m_nClientWidth, m_nClientHeight))
 		return false;
+
+	// Create vertex buffer
+	Vertex vertices[] =
+	{
+		{ XMFLOAT3(0.0f, 0.5f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, 0.0f) }
+	};
+
+	D3D11_BUFFER_DESC vbd;
+	vbd.Usage = D3D11_USAGE_IMMUTABLE;
+	vbd.ByteWidth = sizeof(Vertex) * 3;
+	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vbd.CPUAccessFlags = 0;
+	vbd.MiscFlags = 0;
+	vbd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA vinitData;
+	vinitData.pSysMem = vertices;
+	HR(m_d3dMgr.GetDevice()->CreateBuffer(&vbd, &vinitData, &mBoxVB));
+
+
+	// Create the index buffer
+
+	UINT indices[] = {
+		0, 1, 2,
+	};
+
+	D3D11_BUFFER_DESC ibd;
+	ibd.Usage = D3D11_USAGE_IMMUTABLE;
+	ibd.ByteWidth = sizeof(UINT);
+	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	ibd.CPUAccessFlags = 0;
+	ibd.MiscFlags = 0;
+	ibd.StructureByteStride = 0;
+	D3D11_SUBRESOURCE_DATA iinitData;
+	iinitData.pSysMem = indices;
+	HR(m_d3dMgr.GetDevice()->CreateBuffer(&ibd, &iinitData, &mBoxIB));
+
+	//입력 조립기
+	D3D11_INPUT_ELEMENT_DESC d3dInputLayout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	UINT nElements = ARRAYSIZE(d3dInputLayout);
+	//버텍스 쉐이더
+	HRESULT hResult;
+
+	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	dwShaderFlags |= D3DCOMPILE_DEBUG;
+#endif
+
+	ID3DBlob *pd3dVertexShaderBlob = NULL, *pd3dErrorBlob = NULL;
+	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "VS", "vs_5_0", dwShaderFlags, 0, NULL, &pd3dVertexShaderBlob, &pd3dErrorBlob, NULL)))
+	{
+		m_d3dMgr.GetDevice()->CreateVertexShader(pd3dVertexShaderBlob->GetBufferPointer(), pd3dVertexShaderBlob->GetBufferSize(), NULL, &m_pd3dVertexShader);
+		m_d3dMgr.GetDevice()->CreateInputLayout(d3dInputLayout, nElements, pd3dVertexShaderBlob->GetBufferPointer(), pd3dVertexShaderBlob->GetBufferSize(), &m_pd3dVertexLayout);
+		pd3dVertexShaderBlob->Release();
+	}
+	//픽셀 쉐이더
+	ID3DBlob *pd3dPixelShaderBlob = NULL;
+	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "PS", "ps_5_0", dwShaderFlags, 0, NULL, &pd3dPixelShaderBlob, &pd3dErrorBlob, NULL)))
+	{
+		m_d3dMgr.GetDevice()->CreatePixelShader(pd3dPixelShaderBlob->GetBufferPointer(), pd3dPixelShaderBlob->GetBufferSize(), NULL, &m_pd3dPixelShader);
+		pd3dPixelShaderBlob->Release();
+	}
 
 	return true;
 }
@@ -138,7 +219,6 @@ int CGameFramework::Run()
 			}
 		}
 	}
-
 	return (int)msg.wParam;
 }
 
@@ -149,6 +229,18 @@ void CGameFramework::Update()
 
 void CGameFramework::Draw()
 {
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+	m_d3dMgr.GetDC()->IASetInputLayout(m_pd3dVertexLayout);
+	m_d3dMgr.GetDC()->VSSetShader(m_pd3dVertexShader, NULL, 0);
+	m_d3dMgr.GetDC()->PSSetShader(m_pd3dPixelShader, NULL, 0);
+
+	m_d3dMgr.GetDC()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_d3dMgr.GetDC()->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
+	m_d3dMgr.GetDC()->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
+
+	m_d3dMgr.GetDC()->DrawIndexed(1, 0, 0);
+	//m_d3dMgr.GetDC()->Draw(3, 0);
 	HR(m_d3dMgr.GetSwapChain()->Present(0, 0));
 }
 

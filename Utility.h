@@ -9,6 +9,9 @@
 #include <assert.h>
 #include "dxerr.h"
 #include <vector>
+#include <xnamath.h>
+#include <d3dcompiler.h>
+#include <D3DX11async.h>
 
 inline void Print(char* str)
 {
