@@ -2,7 +2,7 @@
 #include "DirectXManager.h"
 #include "Timer.h"
 
-struct Vertex
+struct CVertex
 {
 	XMFLOAT3 Pos;
 };
@@ -19,12 +19,13 @@ private:
 	CTimer	  m_timer;
 	CDirectXManager m_d3dMgr;
 
-	ID3D11Buffer* mBoxVB;
-	ID3D11Buffer* mBoxIB;
 
 	XMFLOAT4X4 mWorld;
-	XMFLOAT4X4 mView;
-	XMFLOAT4X4 mProj;
+	//XMFLOAT4X4 mView;
+	//XMFLOAT4X4 mProj;
+
+	ID3D11Buffer* m_BoxVB;
+	ID3D11Buffer* m_BoxIB;
 
 	ID3D11VertexShader				*m_pd3dVertexShader;
 	ID3D11InputLayout				*m_pd3dVertexLayout;
@@ -52,5 +53,10 @@ public:
 	void Draw();
 
 	LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	// 쉐이더 소스 코드 파일에서 정점 - 쉐이더를 생성하는 함수이다.
+	void CreateVertexShaderFromFile();
+
+	//쉐이더 소스 코드 파일에서 픽셀-쉐이더를 생성하는 함수이다. 
+	void CreatePixelShaderFromFile();
 };
 

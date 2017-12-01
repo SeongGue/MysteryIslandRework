@@ -4,204 +4,151 @@
 CDirectXManager::CDirectXManager()
 {
 	m_d3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
-	m_d3dDevice = NULL;
-	m_d3dDeviceContext = NULL;
+	m_pd3dDevice = NULL;
+	m_pd3dDeviceContext = NULL;
 	m_4xMsaaQuality = 0;
 
-	m_DepthStencilBuffer = NULL;
-	m_RenderTargetView = NULL;
-	m_DepthStencilView = NULL;
-	ZeroMemory(&m_ScreenViewport, sizeof(D3D11_VIEWPORT));
+	m_pd3dDepthStencilBuffer = NULL;
+	m_pd3dRenderTargetView = NULL;
+	m_pd3dDepthStencilView = NULL;
+	ZeroMemory(&m_d3dScreenViewport, sizeof(D3D11_VIEWPORT));
 	m_Enable4xMsaa = false;
 }
 
 
 CDirectXManager::~CDirectXManager()
 {
-	SafeRelease(&m_RenderTargetView);
-	SafeRelease(&m_DepthStencilView);
-	SafeRelease(&m_SwapChain);
-	SafeRelease(&m_DepthStencilBuffer);
+	SafeRelease(&m_pd3dRenderTargetView);
+	SafeRelease(&m_pd3dDepthStencilView);
+	SafeRelease(&m_pdxgiSwapChain);
+	SafeRelease(&m_pd3dDepthStencilBuffer);
 
 	// Restore all default settings.
-	if (m_d3dDeviceContext)
-		m_d3dDeviceContext->ClearState();
+	if (m_pd3dDeviceContext)
+		m_pd3dDeviceContext->ClearState();
 
-	SafeRelease(&m_d3dDeviceContext);
-	SafeRelease(&m_d3dDevice);
+	SafeRelease(&m_pd3dDeviceContext);
+	SafeRelease(&m_pd3dDevice);
 }
 
 bool CDirectXManager::InitDirect3D(HWND hwnd, int width, int height)
 {
-	// Create the device and device context.
+	if (!CreateDirect3DDisplay(hwnd))
+		return false;
 
-	UINT createDeviceFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)  
-	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	return true;
+}
+
+bool CDirectXManager::CreateRenderTargetView()
+{
+	HRESULT hResult = S_OK;
+
+	//스왑체인의 후면버퍼를 위한 렌더타겟뷰를 생성
+	ID3D11Texture2D *pd3dBackBuffer;
+	if (FAILED(hResult = m_pdxgiSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID *)&pd3dBackBuffer)))
+		return false;
+	if (FAILED(hResult = m_pd3dDevice->CreateRenderTargetView(pd3dBackBuffer, NULL, &m_pd3dRenderTargetView)))
+		return false;
+	SafeRelease(&pd3dBackBuffer);
+	m_pd3dDeviceContext->OMSetRenderTargets(1, &m_pd3dRenderTargetView, NULL);
+	
+	return true;
+}
+
+bool CDirectXManager::CreateDirect3DDisplay(HWND hwnd)
+{
+	RECT rcClient;
+	::GetClientRect(hwnd, &rcClient);
+	UINT nWidth = rcClient.right - rcClient.left;
+	UINT nHeight = rcClient.bottom - rcClient.top;
+
+	UINT dxCreateDeviceFlags = 0;
+#ifdef _DEBUG
+	dxCreateDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-	D3D_FEATURE_LEVEL featureLevel;
-	HRESULT hr = D3D11CreateDevice(
-		0,                 // default adapter
-		m_d3dDriverType,
-		0,                 // no software device
-		createDeviceFlags,
-		0, 0,              // default feature level array
-		D3D11_SDK_VERSION,
-		&m_d3dDevice,
-		&featureLevel,
-		&m_d3dDeviceContext);
-
-	if (FAILED(hr))
+	D3D_DRIVER_TYPE d3dDriverTypes[] =
 	{
-		MessageBox(0, _T("D3D11CreateDevice Failed."), 0, 0);
+		D3D_DRIVER_TYPE_HARDWARE,
+		D3D_DRIVER_TYPE_WARP,
+		D3D_DRIVER_TYPE_REFERENCE
+	};
+	UINT nDriverTypes = sizeof(d3dDriverTypes) / sizeof(D3D10_DRIVER_TYPE);
+
+	D3D_FEATURE_LEVEL d3dFeatureLevels[] =
+	{
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_1,
+		D3D_FEATURE_LEVEL_10_0
+	};
+	UINT nFeatureLevels = sizeof(d3dFeatureLevels) / sizeof(D3D_FEATURE_LEVEL);
+
+	//스왑체인을 위한 구조체
+	DXGI_SWAP_CHAIN_DESC dxgiSwapChainDesc;
+	::ZeroMemory(&dxgiSwapChainDesc, sizeof(dxgiSwapChainDesc));
+	dxgiSwapChainDesc.BufferCount = 1;
+	dxgiSwapChainDesc.BufferDesc.Width = nWidth;
+	dxgiSwapChainDesc.BufferDesc.Height = nHeight;
+	dxgiSwapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	dxgiSwapChainDesc.BufferDesc.RefreshRate.Numerator = 60;
+	dxgiSwapChainDesc.BufferDesc.RefreshRate.Denominator = 1;
+	dxgiSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	dxgiSwapChainDesc.OutputWindow = hwnd;
+	dxgiSwapChainDesc.SampleDesc.Count = 1;
+	dxgiSwapChainDesc.SampleDesc.Quality = 0;
+	dxgiSwapChainDesc.Windowed = TRUE;
+
+	D3D_DRIVER_TYPE nd3dDriverType = D3D_DRIVER_TYPE_NULL;
+	D3D_FEATURE_LEVEL nd3dFeatureLevel = D3D_FEATURE_LEVEL_11_0;
+
+	HRESULT hResult = S_OK;
+
+	for (UINT i = 0; i < nDriverTypes; i++)
+	{
+		nd3dDriverType = d3dDriverTypes[i];
+		if (SUCCEEDED(hResult = D3D11CreateDeviceAndSwapChain(
+			NULL,
+			nd3dDriverType,
+			NULL,
+			dxCreateDeviceFlags,
+			d3dFeatureLevels,
+			nFeatureLevels,
+			D3D11_SDK_VERSION,
+			&dxgiSwapChainDesc,
+			&m_pdxgiSwapChain,
+			&m_pd3dDevice,
+			&nd3dFeatureLevel,
+			&m_pd3dDeviceContext)))
+			break;
+	}
+	if (!m_pdxgiSwapChain || !m_pd3dDevice || !m_pd3dDeviceContext)
+		return(false);
+
+	if (!CreateRenderTargetView())
 		return false;
-	}
 
-	if (featureLevel != D3D_FEATURE_LEVEL_11_0)
-	{
-		MessageBox(0, _T("Direct3D Feature Level 11 unsupported."), 0, 0);
-		return false;
-	}
-
-	// Check 4X MSAA quality support for our back buffer format.
-	// All Direct3D 11 capable devices support 4X MSAA for all render 
-	// target formats, so we only need to check quality support.
-
-	HR(m_d3dDevice->CheckMultisampleQualityLevels(
-		DXGI_FORMAT_R8G8B8A8_UNORM, 4, &m_4xMsaaQuality));
-	assert(m_4xMsaaQuality > 0);
-
-	// Fill out a DXGI_SWAP_CHAIN_DESC to describe our swap chain.
-
-	DXGI_SWAP_CHAIN_DESC sd;
-	sd.BufferDesc.Width = width;
-	sd.BufferDesc.Height = height;
-	sd.BufferDesc.RefreshRate.Numerator = 60;
-	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-
-	// Use 4X MSAA? 
-	if (m_4xMsaaQuality)
-	{
-		sd.SampleDesc.Count = 4;
-		sd.SampleDesc.Quality = m_4xMsaaQuality - 1;
-	}
-	// No MSAA
-	else
-	{
-		sd.SampleDesc.Count = 1;
-		sd.SampleDesc.Quality = 0;
-	}
-
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sd.BufferCount = 1;
-	sd.OutputWindow = hwnd;
-	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-	sd.Windowed = true;
-	sd.Flags = 0;
-	//sd.Windowed     = false;
-	//sd.Flags        = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-	// To correctly create the swap chain, we must use the IDXGIFactory that was
-	// used to create the device.  If we tried to use a different IDXGIFactory instance
-	// (by calling CreateDXGIFactory), we get an error: "IDXGIFactory::CreateSwapChain: 
-	// This function is being called with a device from a different IDXGIFactory."
-
-	IDXGIDevice* dxgiDevice = 0;
-	HR(m_d3dDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDevice));
-
-	IDXGIAdapter* dxgiAdapter = 0;
-	HR(dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter));
-
-	IDXGIFactory* dxgiFactory = 0;
-	HR(dxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&dxgiFactory));
-
-	HR(dxgiFactory->CreateSwapChain(m_d3dDevice, &sd, &m_SwapChain));
-
-	SafeRelease(&dxgiDevice);
-	SafeRelease(&dxgiAdapter);
-	SafeRelease(&dxgiFactory);
-
-	// The remaining steps that need to be carried out for d3d creation
-	// also need to be executed every time the window is resized.  So
-	// just call the OnResize method here to avoid code duplication.
-
-	OnResize(width, height);
+	D3D11_VIEWPORT d3dViewport;
+	d3dViewport.TopLeftX = 0.0f;
+	d3dViewport.TopLeftY = 0.0f;
+	d3dViewport.Width = nWidth;
+	d3dViewport.Height = nHeight;
+	d3dViewport.MinDepth = 0.0f;
+	d3dViewport.MaxDepth = 1.0f;
+	m_pd3dDeviceContext->RSSetViewports(1, &d3dViewport);
 
 	return true;
 }
 
 void CDirectXManager::OnResize(int width, int height)
 {
-	assert(m_d3dDeviceContext);
-	assert(m_d3dDevice);
-	assert(m_SwapChain);
+	m_pd3dDeviceContext->OMSetRenderTargets(0, NULL, NULL);
+	SafeRelease(&m_pd3dRenderTargetView);
+	m_pdxgiSwapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+	CreateRenderTargetView();
+}
 
-	// Release the old views, as they hold references to the buffers we
-	// will be destroying.  Also release the old depth/stencil buffer.
-
-	SafeRelease(&m_RenderTargetView);
-	SafeRelease(&m_DepthStencilView);
-	SafeRelease(&m_DepthStencilBuffer);
-
-
-	// Resize the swap chain and recreate the render target view.
-
-	HR(m_SwapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0));
-	ID3D11Texture2D* backBuffer;
-	HR(m_SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer)));
-
-	HR(m_d3dDevice->CreateRenderTargetView(backBuffer, 0, &m_RenderTargetView));
-
-	SafeRelease(&backBuffer);
-
-	// Create the depth/stencil buffer and view.
-
-	D3D11_TEXTURE2D_DESC depthStencilDesc;
-
-	depthStencilDesc.Width = width;
-	depthStencilDesc.Height = height;
-	depthStencilDesc.MipLevels = 1;
-	depthStencilDesc.ArraySize = 1;
-	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-
-	// Use 4X MSAA? --must match swap chain MSAA values.
-	if (m_Enable4xMsaa)
-	{
-		depthStencilDesc.SampleDesc.Count = 4;
-		depthStencilDesc.SampleDesc.Quality = m_4xMsaaQuality - 1;
-	}
-	// No MSAA
-	else
-	{
-		depthStencilDesc.SampleDesc.Count = 1;
-		depthStencilDesc.SampleDesc.Quality = 0;
-	}
-
-	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	depthStencilDesc.CPUAccessFlags = 0;
-	depthStencilDesc.MiscFlags = 0;
-
-	HR(m_d3dDevice->CreateTexture2D(&depthStencilDesc, 0, &m_DepthStencilBuffer));
-	HR(m_d3dDevice->CreateDepthStencilView(m_DepthStencilBuffer, 0, &m_DepthStencilView));
-
-
-	// Bind the render target view and depth/stencil view to the pipeline.
-
-	m_d3dDeviceContext->OMSetRenderTargets(1, &m_RenderTargetView, m_DepthStencilView);
-
-	// Set the viewport transform.
-
-	m_ScreenViewport.TopLeftX = 0;
-	m_ScreenViewport.TopLeftY = 0;
-	m_ScreenViewport.Width = static_cast<float>(width);
-	m_ScreenViewport.Height = static_cast<float>(height);
-	m_ScreenViewport.MinDepth = 0.0f;
-	m_ScreenViewport.MaxDepth = 1.0f;
-
-	m_d3dDeviceContext->RSSetViewports(1, &m_ScreenViewport);
+void CDirectXManager::ClearBackBuffer()
+{
+	float fClearColor[4] = { 0.0f, 0.125f, 0.3f, 1.0f };
+	m_pd3dDeviceContext->ClearRenderTargetView(m_pd3dRenderTargetView, fClearColor);
 }

@@ -19,8 +19,8 @@ CGameFramework::CGameFramework(HINSTANCE hInstance)
 
 	XMMATRIX I = XMMatrixIdentity();
 	XMStoreFloat4x4(&mWorld, I);
-	XMStoreFloat4x4(&mView, I);
-	XMStoreFloat4x4(&mProj, I);
+	//XMStoreFloat4x4(&mView, I);
+	//XMStoreFloat4x4(&mProj, I);
 
 	m_pd3dVertexShader = NULL;
 	m_pd3dVertexLayout = NULL;
@@ -29,8 +29,8 @@ CGameFramework::CGameFramework(HINSTANCE hInstance)
 
 CGameFramework::~CGameFramework()
 {
-	SafeRelease(&mBoxVB);
-	SafeRelease(&mBoxIB);
+	SafeRelease(&m_BoxVB);
+	SafeRelease(&m_BoxIB);
 
 	SafeRelease(&m_pd3dVertexShader);
 	SafeRelease(&m_pd3dVertexLayout);
@@ -78,71 +78,26 @@ bool CGameFramework::Init()
 	if (!m_d3dMgr.InitDirect3D(m_hWnd, m_nClientWidth, m_nClientHeight))
 		return false;
 
-	// Create vertex buffer
-	Vertex vertices[] =
-	{
-		{ XMFLOAT3(0.0f, 0.5f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, 0.0f) },
-		{ XMFLOAT3(-0.5f, -0.5f, 0.0f) }
+	CVertex pVertices[3] = {
+		XMFLOAT3(0.0f, 0.5f, 0.0f),
+		XMFLOAT3(0.5f, -0.5f, 0.0f),
+		XMFLOAT3(-0.5f, -0.5f, 0.0f)
 	};
 
-	D3D11_BUFFER_DESC vbd;
-	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex) * 3;
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vbd.CPUAccessFlags = 0;
-	vbd.MiscFlags = 0;
-	vbd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA vinitData;
-	vinitData.pSysMem = vertices;
-	HR(m_d3dMgr.GetDevice()->CreateBuffer(&vbd, &vinitData, &mBoxVB));
+	//정점 버퍼를 생성한다. 
+	D3D11_BUFFER_DESC d3dBufferDesc;
+	ZeroMemory(&d3dBufferDesc, sizeof(D3D11_BUFFER_DESC));
+	d3dBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	d3dBufferDesc.ByteWidth = sizeof(CVertex) * 3;
+	d3dBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	d3dBufferDesc.CPUAccessFlags = 0;
+	D3D11_SUBRESOURCE_DATA d3dBufferData;
+	ZeroMemory(&d3dBufferData, sizeof(D3D11_SUBRESOURCE_DATA));
+	d3dBufferData.pSysMem = pVertices;
+	m_d3dMgr.GetDevice()->CreateBuffer(&d3dBufferDesc, &d3dBufferData, &m_BoxVB);
 
-
-	// Create the index buffer
-
-	UINT indices[] = {
-		0, 1, 2,
-	};
-
-	D3D11_BUFFER_DESC ibd;
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(UINT);
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	ibd.CPUAccessFlags = 0;
-	ibd.MiscFlags = 0;
-	ibd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA iinitData;
-	iinitData.pSysMem = indices;
-	HR(m_d3dMgr.GetDevice()->CreateBuffer(&ibd, &iinitData, &mBoxIB));
-
-	//입력 조립기
-	D3D11_INPUT_ELEMENT_DESC d3dInputLayout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-	};
-	UINT nElements = ARRAYSIZE(d3dInputLayout);
-	//버텍스 쉐이더
-	HRESULT hResult;
-
-	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(DEBUG) || defined(_DEBUG)
-	dwShaderFlags |= D3DCOMPILE_DEBUG;
-#endif
-
-	ID3DBlob *pd3dVertexShaderBlob = NULL, *pd3dErrorBlob = NULL;
-	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "VS", "vs_5_0", dwShaderFlags, 0, NULL, &pd3dVertexShaderBlob, &pd3dErrorBlob, NULL)))
-	{
-		m_d3dMgr.GetDevice()->CreateVertexShader(pd3dVertexShaderBlob->GetBufferPointer(), pd3dVertexShaderBlob->GetBufferSize(), NULL, &m_pd3dVertexShader);
-		m_d3dMgr.GetDevice()->CreateInputLayout(d3dInputLayout, nElements, pd3dVertexShaderBlob->GetBufferPointer(), pd3dVertexShaderBlob->GetBufferSize(), &m_pd3dVertexLayout);
-		pd3dVertexShaderBlob->Release();
-	}
-	//픽셀 쉐이더
-	ID3DBlob *pd3dPixelShaderBlob = NULL;
-	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "PS", "ps_5_0", dwShaderFlags, 0, NULL, &pd3dPixelShaderBlob, &pd3dErrorBlob, NULL)))
-	{
-		m_d3dMgr.GetDevice()->CreatePixelShader(pd3dPixelShaderBlob->GetBufferPointer(), pd3dPixelShaderBlob->GetBufferSize(), NULL, &m_pd3dPixelShader);
-		pd3dPixelShaderBlob->Release();
-	}
+	CreateVertexShaderFromFile();
+	CreatePixelShaderFromFile();
 
 	return true;
 }
@@ -185,6 +140,14 @@ LRESULT CALLBACK CGameFramework::MainWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 		hdc = BeginPaint(hwnd, &ps);
 		// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다.
 		EndPaint(hwnd, &ps);
+		break;
+	case WM_SIZE:
+		if (m_d3dMgr.GetDC())
+		{
+			m_nClientWidth = LOWORD(lParam);
+			m_nClientHeight = HIWORD(lParam);
+			m_d3dMgr.OnResize(m_nClientWidth, m_nClientHeight);
+		}
 		break;
 	case WM_DESTROY:
 		DestroyConsole();
@@ -229,20 +192,67 @@ void CGameFramework::Update()
 
 void CGameFramework::Draw()
 {
-	UINT stride = sizeof(Vertex);
+	UINT stride = sizeof(CVertex);
 	UINT offset = 0;
+	m_d3dMgr.ClearBackBuffer();
+
 	m_d3dMgr.GetDC()->IASetInputLayout(m_pd3dVertexLayout);
 	m_d3dMgr.GetDC()->VSSetShader(m_pd3dVertexShader, NULL, 0);
 	m_d3dMgr.GetDC()->PSSetShader(m_pd3dPixelShader, NULL, 0);
 
-	m_d3dMgr.GetDC()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	m_d3dMgr.GetDC()->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
-	m_d3dMgr.GetDC()->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
 
-	m_d3dMgr.GetDC()->DrawIndexed(1, 0, 0);
-	//m_d3dMgr.GetDC()->Draw(3, 0);
+	m_d3dMgr.GetDC()->IASetVertexBuffers(0, 1, &m_BoxVB, &stride, &offset);
+	m_d3dMgr.GetDC()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	m_d3dMgr.GetDC()->Draw(3, 0);
+
 	HR(m_d3dMgr.GetSwapChain()->Present(0, 0));
 }
 
+void CGameFramework::CreateVertexShaderFromFile()
+{
+	D3D11_INPUT_ELEMENT_DESC d3dInputLayout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	UINT nElements = ARRAYSIZE(d3dInputLayout);
 
+	HRESULT hResult;
+
+	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	dwShaderFlags |= D3DCOMPILE_DEBUG;
+#endif
+
+	ID3DBlob *pd3dShaderBlob = NULL, *pd3dErrorBlob = NULL;
+	/*파일(pszFileName)에서 쉐이더 함수(pszShaderName)를 컴파일하여 컴파일된 쉐이더 코드의 메모리 주소(pd3dShaderBlob)를 반환한다.*/
+	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "VS", "vs_5_0", dwShaderFlags, 0, NULL, &pd3dShaderBlob, &pd3dErrorBlob, NULL)))
+	{
+		//컴파일된 쉐이더 코드의 메모리 주소에서 정점-쉐이더를 생성한다. 
+		m_d3dMgr.GetDevice()->CreateVertexShader(pd3dShaderBlob->GetBufferPointer(), pd3dShaderBlob->GetBufferSize(), NULL, &m_pd3dVertexShader);
+		//컴파일된 쉐이더 코드의 메모리 주소와 입력 레이아웃에서 정점 레이아웃을 생성한다. 
+		m_d3dMgr.GetDevice()->CreateInputLayout(d3dInputLayout, nElements, pd3dShaderBlob->GetBufferPointer(), pd3dShaderBlob->GetBufferSize(), &m_pd3dVertexLayout);
+		pd3dShaderBlob->Release();
+	}
+}
+
+//쉐이더 소스 코드 파일에서 픽셀-쉐이더를 생성하는 함수이다. 
+void CGameFramework::CreatePixelShaderFromFile()
+{
+	HRESULT hResult;
+
+	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
+	dwShaderFlags |= D3DCOMPILE_DEBUG;
+#endif
+
+	ID3DBlob *pd3dShaderBlob = NULL, *pd3dErrorBlob = NULL;
+	/*파일(pszFileName)에서 쉐이더 함수(pszShaderName)를 컴파일하여 컴파일된 쉐이더 코드의 메모리 주소(pd3dShaderBlob)를 반환한다.*/
+	if (SUCCEEDED(hResult = D3DX11CompileFromFile(_T("Effect.fx"), NULL, NULL, "PS", "ps_5_0", dwShaderFlags, 0, NULL, &pd3dShaderBlob, &pd3dErrorBlob, NULL)))
+	{
+		//컴파일된 쉐이더 코드의 메모리 주소에서 픽셀-쉐이더를 생성한다. 
+		m_d3dMgr.GetDevice()->CreatePixelShader(pd3dShaderBlob->GetBufferPointer(), pd3dShaderBlob->GetBufferSize(), NULL, &m_pd3dPixelShader);
+		pd3dShaderBlob->Release();
+	}
+}
 	

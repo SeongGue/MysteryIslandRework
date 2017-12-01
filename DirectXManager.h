@@ -5,15 +5,15 @@ class CDirectXManager
 {
 private:
 	D3D_DRIVER_TYPE			m_d3dDriverType;
-	ID3D11Device*			m_d3dDevice;
-	ID3D11DeviceContext*	m_d3dDeviceContext;
-	IDXGISwapChain*			m_SwapChain;
+	ID3D11Device*			m_pd3dDevice;
+	ID3D11DeviceContext*	m_pd3dDeviceContext;
+	IDXGISwapChain*			m_pdxgiSwapChain;
 	UINT					m_4xMsaaQuality;
 
-	ID3D11Texture2D*		m_DepthStencilBuffer;
-	ID3D11RenderTargetView* m_RenderTargetView;
-	ID3D11DepthStencilView* m_DepthStencilView;
-	D3D11_VIEWPORT			m_ScreenViewport;
+	ID3D11Texture2D*		m_pd3dDepthStencilBuffer;
+	ID3D11RenderTargetView* m_pd3dRenderTargetView;
+	ID3D11DepthStencilView* m_pd3dDepthStencilView;
+	D3D11_VIEWPORT			m_d3dScreenViewport;
 	bool					m_Enable4xMsaa;
 
 public:
@@ -21,11 +21,14 @@ public:
 	~CDirectXManager();
 
 	bool InitDirect3D(HWND hwnd, int width, int height);
+	bool CreateRenderTargetView();
+	bool CreateDirect3DDisplay(HWND hwnd);
 	void OnResize(int width, int height);
+	void ClearBackBuffer();
 
-	ID3D11Device*		 GetDevice()	{ return m_d3dDevice; }
-	ID3D11DeviceContext* GetDC()		{ return m_d3dDeviceContext; }		
-	IDXGISwapChain*		 GetSwapChain() { return m_SwapChain; }
+	ID3D11Device*		 GetDevice()	{ return m_pd3dDevice; }
+	ID3D11DeviceContext* GetDC()		{ return m_pd3dDeviceContext; }		
+	IDXGISwapChain*		 GetSwapChain() { return m_pdxgiSwapChain; }
 };
 
 	
