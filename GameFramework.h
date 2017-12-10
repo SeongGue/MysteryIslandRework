@@ -1,11 +1,7 @@
 #pragma once
-#include "DirectXManager.h"
+#include "Shader.h"
 #include "Timer.h"
-
-struct CVertex
-{
-	XMFLOAT3 Pos;
-};
+#include "Camera.h"
 
 class CGameFramework
 {
@@ -17,19 +13,16 @@ private:
 	int		  m_nClientHeight;
 
 	CTimer	  m_timer;
-	CDirectXManager m_d3dMgr;
+	//CDirectXManager m_d3dMgr;
 
 
-	XMFLOAT4X4 mWorld;
+	//XMFLOAT4X4 mWorld;
 	//XMFLOAT4X4 mView;
 	//XMFLOAT4X4 mProj;
 
-	ID3D11Buffer* m_BoxVB;
-	ID3D11Buffer* m_BoxIB;
+	CShader* m_pShader;
+	CCamera* m_pCamera;
 
-	ID3D11VertexShader				*m_pd3dVertexShader;
-	ID3D11InputLayout				*m_pd3dVertexLayout;
-	ID3D11PixelShader				*m_pd3dPixelShader;
 
 public:
 	static CGameFramework* m_framework;
@@ -53,10 +46,5 @@ public:
 	void Draw();
 
 	LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-	// 쉐이더 소스 코드 파일에서 정점 - 쉐이더를 생성하는 함수이다.
-	void CreateVertexShaderFromFile();
-
-	//쉐이더 소스 코드 파일에서 픽셀-쉐이더를 생성하는 함수이다. 
-	void CreatePixelShaderFromFile();
 };
 
